@@ -1123,8 +1123,9 @@ class GetDistPlotter(_BaseObject):
                 if dashes:
                     line.set_dashes(dashes)
                 self.contours_added[proxy_ix] = line
+        FoM = 1. / ((density.x[-1] - density.x[0]) / (len(density.x)-1) * (density.y[-1] - density.y[0]) / (len(density.y)-1) * np.sum(np.array(density.P) > sorted(contour_levels)[0]))
 
-        return density.bounds()
+        return density.bounds(), FoM
 
     def add_2d_shading(self, root, param1, param2, colormap=None, density=None, ax=None, **kwargs):
         """
@@ -1633,7 +1634,7 @@ class GetDistPlotter(_BaseObject):
             self.finish_plot()
 
     def plot_2d(self, roots, param1=None, param2=None, param_pair=None, shaded=False,
-                add_legend_proxy=True, line_offset=0, proxy_root_exclude=(), ax=None, **kwargs):
+                add_legend_proxy=True, line_offset=0, proxy_root_exclude=(), ax=None, return_FoM=False, **kwargs):
         """
         Create a single 2D line, contour or filled plot.
 
@@ -1682,10 +1683,12 @@ class GetDistPlotter(_BaseObject):
             self.add_2d_shading(roots[0], param_pair[0], param_pair[1], ax=ax)
         xbounds, ybounds = None, None
         contour_args = self._make_contour_args(len(roots), **kwargs)
+        FoM = []
         for i, root in enumerate(roots):
-            res = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
+            res, FOM = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
                                        add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
                                        **contour_args[i])
+            FoM.append(FOM)
             xbounds, ybounds = self._update_limits(res, xbounds, ybounds)
         if xbounds is None:
             return
@@ -1697,6 +1700,8 @@ class GetDistPlotter(_BaseObject):
         self.set_axes(param_pair, ax=ax, **kwargs)
         if not _no_finish and len(self.fig.axes) == 1:
             self.finish_plot()
+        if return_FoM:
+            return xbounds, ybounds, FoM
         return xbounds, ybounds
 
     def default_col_row(self, nplot=1, nx=None, ny=None):
@@ -2932,7 +2937,7 @@ class GetDistPlotter(_BaseObject):
                                            alpha_samples=alpha_samples, ax=ax, **kwargs)
         for i, root in enumerate(roots[1:]):
             params = params_for_plots[i + 1]
-            res = self.add_2d_contours(root, params[0], params[1], i + line_offset, add_legend_proxy=add_legend_proxy,
+            res, _ = self.add_2d_contours(root, params[0], params[1], i + line_offset, add_legend_proxy=add_legend_proxy,
                                        zorder=i + 1, ax=ax, **contour_args[i])
             xlims, ylims = self._update_limits(res, xlims, ylims)
         if 'lims' not in kwargs:
