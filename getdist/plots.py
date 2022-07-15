@@ -2567,7 +2567,7 @@ class GetDistPlotter(_BaseObject):
 
     def rectangle_plot(self, xparams, yparams, yroots=None, roots=None, plot_roots=None, plot_texts=None,
                        xmarkers=None, ymarkers=None, marker_args=empty_dict, param_limits=empty_dict,
-                       legend_labels=None, legend_ncol=None, label_order=None, **kwargs):
+                       legend_labels=None, legend_ncol=None, label_order=None, return_FoM=True, **kwargs):
         """
         Make a grid of 2D plots.
 
@@ -2621,6 +2621,7 @@ class GetDistPlotter(_BaseObject):
         if roots:
             roots = makeList(roots)
         limits = dict()
+        FoM = []
         for x, xparam in enumerate(xparams):
             sharex = None
             if plot_roots:
@@ -2640,7 +2641,10 @@ class GetDistPlotter(_BaseObject):
                 ymarker = self._get_marker(ymarkers, y, yparam)
 
                 res = self.plot_2d(subplot_roots, param_pair=[xparam, yparam], do_xlabel=y == len(yparams) - 1,
-                                   do_ylabel=x == 0, add_legend_proxy=x == 0 and y == 0, ax=ax, **kwargs)
+                                   do_ylabel=x == 0, add_legend_proxy=x == 0 and y == 0, ax=ax, return_FoM=return_FoM, **kwargs)
+                if return_FoM:
+                    FoM.append(res[-1][0])
+                    res = res[:-1]
                 if xmarker is not None:
                     self.add_x_marker(xmarker, ax=ax, **marker_args)
                 if ymarker is not None:
@@ -2666,6 +2670,8 @@ class GetDistPlotter(_BaseObject):
             legend_labels = self._default_legend_labels(legend_labels, roots)
         self.finish_plot(legend_labels=legend_labels, label_order=label_order,
                          legend_ncol=legend_ncol or self.settings.figure_legend_ncol or len(legend_labels))
+        if return_FoM:
+            return ax_arr, FoM
         return ax_arr
 
     def rotate_xticklabels(self, ax=None, rotation=90, labelsize=None):
