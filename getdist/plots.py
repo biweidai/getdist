@@ -1020,7 +1020,7 @@ class GetDistPlotter(_BaseObject):
         return self.add_2d_contours(None, density=density, **kwargs)
 
     def add_2d_contours(self, root, param1=None, param2=None, plotno=0, of=None, cols=None, contour_levels=None,
-                        add_legend_proxy=True, param_pair=None, density=None, alpha=None, ax=None, **kwargs):
+                        add_legend_proxy=True, param_pair=None, density=None, alpha=None, ax=None, xtrue=None, ytrue=None, **kwargs):
         """
         Low-level function to add 2D contours to plot for samples with given root name and parameters
 
@@ -1123,9 +1123,19 @@ class GetDistPlotter(_BaseObject):
                 if dashes:
                     line.set_dashes(dashes)
                 self.contours_added[proxy_ix] = line
-        FoM = 1. / ((density.x[-1] - density.x[0]) / (len(density.x)-1) * (density.y[-1] - density.y[0]) / (len(density.y)-1) * np.sum(np.array(density.P) > sorted(contour_levels)[0]))
+        FoM = 1. / ((density.x[-1] - density.x[0]) / (len(density.x)-1) * (density.y[-1] - density.y[0]) / (len(density.y)-1) * np.sum(np.array(density.P) > sorted(contour_levels)[1]))
+        if xtrue and ytrue:
+            density_true = density(xtrue, ytrue, grid=False)
+            if density_true >= sorted(contour_levels)[1]:
+                flag = 0
+            elif density_true >= sorted(contour_levels)[0]:
+                flag = 1
+            else:
+                flag = 2
+        else:
+            flag = None
 
-        return density.bounds(), FoM
+        return density.bounds(), FoM, flag
 
     def add_2d_shading(self, root, param1, param2, colormap=None, density=None, ax=None, **kwargs):
         """
@@ -1634,7 +1644,8 @@ class GetDistPlotter(_BaseObject):
             self.finish_plot()
 
     def plot_2d(self, roots, param1=None, param2=None, param_pair=None, shaded=False,
-                add_legend_proxy=True, line_offset=0, proxy_root_exclude=(), ax=None, return_FoM=False, **kwargs):
+                add_legend_proxy=True, line_offset=0, proxy_root_exclude=(), ax=None, 
+                return_FoM=False, xtrue=None, ytrue=None, **kwargs):
         """
         Create a single 2D line, contour or filled plot.
 
@@ -1684,11 +1695,15 @@ class GetDistPlotter(_BaseObject):
         xbounds, ybounds = None, None
         contour_args = self._make_contour_args(len(roots), **kwargs)
         FoM = []
+        Flag = []
         for i, root in enumerate(roots):
-            res, FOM = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
-                                       add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
-                                       **contour_args[i])
+            res, FOM, flag = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
+                                    add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude, 
+                                    xtrue=xtrue, ytrue=ytrue, **contour_args[i])
+            if return_FoM:
+                print(FOM, flag)
             FoM.append(FOM)
+            Flag.append(flag)
             xbounds, ybounds = self._update_limits(res, xbounds, ybounds)
         if xbounds is None:
             return
@@ -1701,7 +1716,7 @@ class GetDistPlotter(_BaseObject):
         if not _no_finish and len(self.fig.axes) == 1:
             self.finish_plot()
         if return_FoM:
-            return xbounds, ybounds, FoM
+            return xbounds, ybounds, FoM, Flag
         return xbounds, ybounds
 
     def default_col_row(self, nplot=1, nx=None, ny=None):
@@ -2622,6 +2637,7 @@ class GetDistPlotter(_BaseObject):
             roots = makeList(roots)
         limits = dict()
         FoM = []
+        Flag = []
         for x, xparam in enumerate(xparams):
             sharex = None
             if plot_roots:
@@ -2641,10 +2657,12 @@ class GetDistPlotter(_BaseObject):
                 ymarker = self._get_marker(ymarkers, y, yparam)
 
                 res = self.plot_2d(subplot_roots, param_pair=[xparam, yparam], do_xlabel=y == len(yparams) - 1,
-                                   do_ylabel=x == 0, add_legend_proxy=x == 0 and y == 0, ax=ax, return_FoM=return_FoM, **kwargs)
+                                   do_ylabel=x == 0, add_legend_proxy=x == 0 and y == 0, ax=ax, return_FoM=return_FoM, 
+                                   xtrue=xmarker, ytrue=ymarker, **kwargs)
                 if return_FoM:
-                    FoM.append(res[-1][0])
-                    res = res[:-1]
+                    Flag.append(res[-1])
+                    FoM.append(res[-2])
+                    res = res[:-2]
                 if xmarker is not None:
                     self.add_x_marker(xmarker, ax=ax, **marker_args)
                 if ymarker is not None:
@@ -2671,7 +2689,7 @@ class GetDistPlotter(_BaseObject):
         self.finish_plot(legend_labels=legend_labels, label_order=label_order,
                          legend_ncol=legend_ncol or self.settings.figure_legend_ncol or len(legend_labels))
         if return_FoM:
-            return ax_arr, FoM
+            return ax_arr, FoM, Flag
         return ax_arr
 
     def rotate_xticklabels(self, ax=None, rotation=90, labelsize=None):
